@@ -2,12 +2,17 @@
 #include <assert.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
 #include "synch.h"
 
 typedef struct test_synch_data {
     lock_t *tsd_lock;
-    int tsd_data;
+    rw_lock_t *tsd_rwlock;
+    cv_t *tsd_cv;
+    bool tsd_initd;
+    pthread_t tsd_writer;
 } test_synch_data_t;
 
 static void *_test_locks(void *arg) {
@@ -18,7 +23,7 @@ static void *_test_locks(void *arg) {
     assert(lock_lock(tsd->tsd_lock) == 0);
     
     printf("  _test_locks: thread %p in critical section\n", pthread_self());
-    sleep(5);
+    sleep(3);
     
     assert(lock_unlock(tsd->tsd_lock) == 0);
     
@@ -45,7 +50,112 @@ static void test_locks(void) {
     assert(lock_destroy(tsd.tsd_lock) == 0);
 }
 
+static void *_test_cvs(void *arg) {
+    test_synch_data_t *tsd = (test_synch_data_t *)arg;
+    
+    assert(lock_lock(tsd->tsd_lock) == 0);
+    
+    while (!tsd->tsd_initd) { // don't start until all threads have been set up
+        printf("  _test_cvs: initd isn't set yet; cv_wait'ing until it is\n");
+        cv_wait(tsd->tsd_cv, tsd->tsd_lock);
+    }
+    
+    printf("  _test_cvs: initd is set now\n");
+    
+    assert(lock_unlock(tsd->tsd_lock) == 0);
+
+    return NULL;
+}
+
+static void test_cvs(void) {
+    test_synch_data_t tsd;
+    pthread_t t;
+    
+    printf("test_cvs...\n");
+    
+    memset(&tsd, 0, sizeof(test_synch_data_t));
+    assert(tsd.tsd_lock = lock_create());
+    assert(tsd.tsd_cv = cv_create());
+
+    assert(pthread_create(&t, NULL, _test_cvs, &tsd) == 0);
+    
+    sleep(3);
+    
+    assert(lock_lock(tsd.tsd_lock) == 0);
+    tsd.tsd_initd = true;
+    printf("  test_cvs: setup complete\n");
+    assert(lock_unlock(tsd.tsd_lock) == 0);
+    cv_broadcast(tsd.tsd_cv);
+    
+    assert(pthread_join(t, NULL) == 0);
+    
+    assert(lock_destroy(tsd.tsd_lock) == 0);
+    assert(cv_destroy(tsd.tsd_cv) == 0);
+}
+
+static void *_test_rwlocks(void *arg) {
+    test_synch_data_t *tsd = (test_synch_data_t *)arg;
+    bool is_writer = false;
+    
+    assert(lock_lock(tsd->tsd_lock) == 0);
+   
+    while (!tsd->tsd_initd) // don't start until all threads have been set up
+        cv_wait(tsd->tsd_cv, tsd->tsd_lock);
+    
+    if (pthread_self() == tsd->tsd_writer)
+        is_writer = true;
+    
+    assert(lock_unlock(tsd->tsd_lock) == 0);
+    
+    printf("  _test_rwlocks: thread %p (%s)\n", pthread_self(), is_writer ? "writer" : "reader" );
+    
+    if (is_writer)
+        assert(rwl_lock_exclusive(tsd->tsd_rwlock) == 0);
+    else
+        assert(rwl_lock_shared(tsd->tsd_rwlock) == 0);
+    
+    printf("  _test_rwlocks: thread %p (%s) in critical section\n", pthread_self(), is_writer ? "writer" : "reader");
+    sleep(3);
+    
+    assert(rwl_unlock(tsd->tsd_rwlock) == 0);
+    
+    printf("  _test_rwlocks: thread %p (%s) out of critical section\n", pthread_self(), is_writer ? "writer" : "reader");
+
+    return NULL;
+}
+
+static void test_rwlocks(void) {
+    test_synch_data_t tsd;
+    pthread_t t[4];
+    
+    printf("test_rwlocks...\n");
+    
+    memset(&tsd, 0, sizeof(test_synch_data_t));
+    assert(tsd.tsd_lock = lock_create());
+    assert(tsd.tsd_rwlock = rwl_create());
+    assert(tsd.tsd_cv = cv_create());
+    
+    for (int i = 0; i < 4; i++)
+        assert(pthread_create(&t[i], NULL, _test_rwlocks, &tsd) == 0);
+    
+    assert(lock_lock(tsd.tsd_lock) == 0);
+    tsd.tsd_writer = t[rand() % 4];
+    tsd.tsd_initd = true; // flag thread's that all have been created
+    printf("  test_rwlocks: setup complete\n");
+    assert(lock_unlock(tsd.tsd_lock) == 0);
+    cv_broadcast(tsd.tsd_cv);
+    
+    for (int i = 0; i < 4; i++)
+        assert(pthread_join(t[i], NULL) == 0);
+    
+    assert(lock_destroy(tsd.tsd_lock) == 0);
+    assert(rwl_destroy(tsd.tsd_rwlock) == 0);
+    assert(cv_destroy(tsd.tsd_cv) == 0);
+}
+
 int main(void) {
     test_locks();
+    test_cvs();
+    test_rwlocks();
     return 0;
 }
