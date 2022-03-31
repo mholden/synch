@@ -6,7 +6,7 @@ INCLUDES=-I$(SN)/include
 
 all: test_synch
 
-test_synch: test_synch.c ../include/synch.h
+test_synch: test_synch.c ../synch.c ../include/synch.h
 	$(CC) $(CFLAGS) $(INCLUDES) test_synch.c ../synch.c -pthread -o test_synch
 
 clean:
