@@ -153,12 +153,16 @@ static void test_rwlocks(void) {
     assert(cv_destroy(tsd.tsd_cv) == 0);
 }
 
-static int _test_threads(thread_ctx_t *ctx) {
-    thread_t *t = ctx->tc_thread;
-    void *arg = ctx->tc_start_arg;
+typedef struct test_threads_start_arg {
+    thread_t *t;
     int ret;
+} test_threads_start_arg_t;
+
+static int _test_threads(void *arg) {
+    test_threads_start_arg_t *targ = (test_threads_start_arg_t *)arg;
+    thread_t *t = targ->t;
+    int ret = targ->ret;
     
-    ret = *(int *)arg;
     ret++;
     printf("  _test_threads: thread %s returning %d\n", t->t_name, ret);
     
@@ -167,16 +171,28 @@ static int _test_threads(thread_ctx_t *ctx) {
 
 static void test_threads() {
     thread_t *t1, *t2;
-    int tret = 0, tret1 = 1;
+    test_threads_start_arg_t targ1, targ2;
+    int tret1 = 0, tret2 = 1;
     
     printf("test_threads...\n");
     
-    assert(t1 = thread_create("test_synch_thread0", _test_threads, &tret));
-    assert(thread_start(t1) == 0);
-    assert((thread_wait(t1, &tret) == 0) && (tret == 1));
+    assert(t1 = thread_create("test_synch_thread1"));
     
-    assert(t2 = thread_create_and_start("test_synch_thread1", _test_threads, &tret1));
-    assert((thread_wait(t2, &tret1) == 0) && (tret1 == 2));
+    memset(&targ1, 0, sizeof(test_threads_start_arg_t));
+    targ1.t = t1;
+    targ1.ret = tret1;
+    assert(thread_start(t1, _test_threads, &targ1) == 0);
+    
+    assert((thread_wait(t1, &tret1) == 0) && (tret1 == 1));
+    
+    assert(t2 = thread_create("test_synch_thread2"));
+    
+    memset(&targ2, 0, sizeof(test_threads_start_arg_t));
+    targ2.t = t2;
+    targ2.ret = tret2;
+    assert(thread_start(t1, _test_threads, &targ2) == 0);
+    
+    assert((thread_wait(t1, &tret2) == 0) && (tret2 == 2));
     
     thread_destroy(t1);
     thread_destroy(t2);

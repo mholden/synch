@@ -40,25 +40,21 @@ int cv_broadcast(cv_t *cv);
 
 // threads
 
-typedef struct thread thread_t;
-typedef struct thread_ctx thread_ctx_t;
+typedef struct thread_start_ctx {
+    int (*start_fn)(void *start_arg);
+    void *start_arg;
+} thread_start_ctx_t;
 
-struct thread_ctx {
-    thread_t *tc_thread;
-    void *tc_start_arg;
-};
-
-struct thread {
+typedef struct thread {
     char *t_name;
-    int (*t_start_fn)(thread_ctx_t *ctx);
-    thread_ctx_t *t_ctx;
+    thread_start_ctx_t t_start_ctx;
     pthread_t t_pthread;
-};
+} thread_t;
 
-thread_t *thread_create(const char *tname, int (*start_fn)(thread_ctx_t *), void *start_arg);
-thread_t *thread_create_and_start(const char *tname, int (*start_fn)(thread_ctx_t *), void *start_arg);
+thread_t *thread_create(const char *tname);
+thread_t *thread_create_and_start(const char *tname, int (*start_fn)(void *start_arg), void *start_arg);
 void thread_destroy(thread_t *t);
-int thread_start(thread_t *t);
+int thread_start(thread_t *t, int (*start_fn)(void *start_arg), void *start_arg);
 int thread_wait(thread_t *t, int *ret);
 
 #endif // _SYNCH_H_

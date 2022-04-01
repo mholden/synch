@@ -146,7 +146,7 @@ int cv_broadcast(cv_t *cv) {
 
 // threads:
 
-thread_t *thread_create(const char *tname, int (*start_fn)(thread_ctx_t *), void *start_arg) {
+thread_t *thread_create(const char *tname) {
     thread_t *t;
     
     t = malloc(sizeof(thread_t));
@@ -161,37 +161,24 @@ thread_t *thread_create(const char *tname, int (*start_fn)(thread_ctx_t *), void
     
     strcpy(t->t_name, tname);
     
-    t->t_start_fn = start_fn;
-    
-    t->t_ctx = malloc(sizeof(thread_ctx_t));
-    if (!t->t_ctx)
-        goto error_out;
-    
-    memset(t->t_ctx, 0, sizeof(thread_ctx_t));
-    t->t_ctx->tc_thread = t;
-    t->t_ctx->tc_start_arg = start_arg;
-    
     return t;
     
 error_out:
-    if (t) {
-        if (t->t_name)
-            free(t->t_name);
+    if (t)
         free(t);
-    }
     
     return NULL;
 }
 
-thread_t *thread_create_and_start(const char *tname, int (*start_fn)(thread_ctx_t *), void *start_arg) {
+thread_t *thread_create_and_start(const char *tname, int (*start_fn)(void *start_arg), void *start_arg) {
     thread_t *t = NULL;
     int err;
     
-    t = thread_create(tname, start_fn, start_arg);
+    t = thread_create(tname);
     if (!t)
         goto error_out;
     
-    err = thread_start(t);
+    err = thread_start(t, start_fn, start_arg);
     if (err)
         goto error_out;
     
@@ -205,16 +192,16 @@ error_out:
 }
 
 void thread_destroy(thread_t *t) {
-    free(t->t_ctx);
     free(t->t_name);
     free(t);
 }
 
 static void *_thread_start(void *arg) {
     thread_t *t = (thread_t *)arg;
+    thread_start_ctx_t *ctx = &t->t_start_ctx;
     int err;
     
-    err = t->t_start_fn(t->t_ctx);
+    err = ctx->start_fn(ctx->start_arg);
     if (err)
         goto error_out;
     
@@ -224,8 +211,11 @@ error_out:
     return (void *)(intptr_t)err;
 }
 
-int thread_start(thread_t *t) {
+int thread_start(thread_t *t, int (*start_fn)(void *start_arg), void *start_arg) {
     int err;
+    
+    t->t_start_ctx.start_fn = start_fn;
+    t->t_start_ctx.start_arg = start_arg;
     
     err = pthread_create(&t->t_pthread, NULL, _thread_start, (void *)t);
     if (err)
