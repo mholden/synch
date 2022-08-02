@@ -41,6 +41,7 @@ typedef struct cv {
 cv_t *cv_create(void);
 int cv_destroy(cv_t *cv);
 int cv_wait(cv_t *cv, lock_t *l);
+int cv_timedwait(cv_t *cv, lock_t *l, struct timespec *t);
 int cv_signal(cv_t *cv);
 int cv_broadcast(cv_t *cv);
 

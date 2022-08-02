@@ -11,7 +11,7 @@ lock_t *lock_create(void) {
     lock_t *l;
     int err;
     
-    l = malloc(sizeof(lock_t));
+    l = (lock_t *)malloc(sizeof(lock_t));
     if (!l)
         goto error_out;
     
@@ -68,7 +68,7 @@ rw_lock_t *rwl_create(void) {
     rw_lock_t *rwl;
     int err;
     
-    rwl = malloc(sizeof(rw_lock_t));
+    rwl = (rw_lock_t *)malloc(sizeof(rw_lock_t));
     if (!rwl)
         goto error_out;
     
@@ -116,7 +116,7 @@ cv_t *cv_create(void) {
     cv_t *cv;
     int err;
     
-    cv = malloc(sizeof(cv_t));
+    cv = (cv_t *)malloc(sizeof(cv_t));
     if (!cv)
         goto error_out;
     
@@ -150,6 +150,10 @@ int cv_wait(cv_t *cv, lock_t *l) {
     return pthread_cond_wait(&cv->cv_cond, &l->l_lock);
 }
 
+int cv_timedwait(cv_t *cv, lock_t *l, struct timespec *t) {
+    return pthread_cond_timedwait(&cv->cv_cond, &l->l_lock, t);
+}
+
 int cv_signal(cv_t *cv) {
     return pthread_cond_signal(&cv->cv_cond);
 }
@@ -162,13 +166,13 @@ int cv_broadcast(cv_t *cv) {
 thread_t *thread_create(const char *tname) {
     thread_t *t;
     
-    t = malloc(sizeof(thread_t));
+    t = (thread_t *)malloc(sizeof(thread_t));
     if (!t)
         goto error_out;
     
     memset(t, 0, sizeof(thread_t));
     
-    t->t_name = malloc(strlen(tname) + 1);
+    t->t_name = (char *)malloc(strlen(tname) + 1);
     if (!t->t_name)
         goto error_out;
     
