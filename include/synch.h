@@ -5,11 +5,17 @@
 
 // locks:
 
+#define LOCK_INITIALIZER                    \
+{                                           \
+    .l_lock = PTHREAD_MUTEX_INITIALIZER     \
+}
+
 typedef struct lock {
     pthread_mutex_t l_lock;
 } lock_t;
 
 lock_t *lock_create(void);
+int lock_init(lock_t *l);
 int lock_destroy(lock_t *l);
 int lock_lock(lock_t *l);
 int lock_unlock(lock_t *l);

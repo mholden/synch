@@ -15,8 +15,7 @@ lock_t *lock_create(void) {
     if (!l)
         goto error_out;
     
-    memset(l, 0, sizeof(lock_t));
-    err = pthread_mutex_init(&l->l_lock, NULL);
+    err = lock_init(l);
     if (err)
         goto error_out;
     
@@ -24,6 +23,20 @@ lock_t *lock_create(void) {
     
 error_out:
     return NULL;
+}
+
+int lock_init(lock_t *l) {
+    int err;
+    
+    memset(l, 0, sizeof(lock_t));
+    err = pthread_mutex_init(&l->l_lock, NULL);
+    if (err)
+        goto error_out;
+    
+    return 0;
+    
+error_out:
+    return err;
 }
 
 int lock_destroy(lock_t *l) {
@@ -235,7 +248,8 @@ int thread_wait(thread_t *t, int *ret) {
     if (err)
         goto error_out;
     
-    *ret = (int)(intptr_t)tret;
+    if (ret)
+        *ret = (int)(intptr_t)tret;
     
     return 0;
     
